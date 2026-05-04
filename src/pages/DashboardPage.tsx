@@ -84,8 +84,8 @@ export default function DashboardPage({ expenses, loading, error, refresh }: Pro
       <div className="flex-1 overflow-y-auto scrollbar-hide pb-4">
 
         {error && (
-          <div className="mx-4 mt-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm text-center">
-            {error} — <button className="underline" onClick={refresh}>retry</button>
+          <div className="mx-4 mt-4 p-3 rounded-xl bg-blue-50 text-blue-600 text-sm text-center">
+            🚀 Deploy to Netlify to connect Google Sheets
           </div>
         )}
 

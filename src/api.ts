@@ -4,6 +4,14 @@ const BASE = '/.netlify/functions';
 
 export async function fetchExpenses(): Promise<Expense[]> {
   const res = await fetch(`${BASE}/get-expenses`);
+
+  // Running on plain Vite without netlify dev — functions not available yet
+  const contentType = res.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    console.warn('[ExpenseFlow] Functions not available locally. Deploy to Netlify to connect Google Sheets.');
+    return [];
+  }
+
   if (!res.ok) throw new Error('Failed to fetch expenses');
   const data = await res.json();
   return data.expenses as Expense[];
