@@ -5,13 +5,14 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink:     '#0A0D12',
-        surface: '#121722',
-        border:  'rgba(255,255,255,0.07)',
+        ink:     '#F8FAFC',
+        surface: '#FFFFFF',
+        border:  'rgba(0,0,0,0.07)',
         primary: '#3B82F6',
         success: '#22C55E',
         danger:  '#EF4444',
-        muted:   '#94A3B8',
+        muted:   '#64748B',
+        dark:    '#0F172A',
       },
       fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
       keyframes: {
