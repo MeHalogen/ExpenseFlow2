@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronDown } from 'lucide-react';
+import { ChevronLeft, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import { addExpense } from '../api';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, PAYMENT_MODES, BANKS } from '../constants';
@@ -23,196 +23,228 @@ export default function AddEntryPage({ refresh }: Props) {
   const [saving,   setSaving]   = useState(false);
 
   const amountRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { amountRef.current?.focus(); }, []);
+  const dateRef   = useRef<HTMLInputElement>(null);
 
-  const categories = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+  useEffect(() => {
+    const t = setTimeout(() => amountRef.current?.focus(), 120);
+    return () => clearTimeout(t);
+  }, []);
+
+  const categories  = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+  const accentLight = type === 'expense' ? '#FEF2F2' : '#F0FDF4';
+  const accentColor = type === 'expense' ? '#EF4444' : '#22C55E';
+  const accentBtn   = type === 'expense' ? 'bg-red-500'   : 'bg-green-500';
+  const accentText  = type === 'expense' ? 'text-red-500' : 'text-green-600';
+
+  const displayAmt = amount && Number(amount) > 0
+    ? Number(amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })
+    : '';
+
+  const dateLabel = (() => {
+    try {
+      return new Date(date + 'T00:00:00').toLocaleDateString('en-IN', {
+        day: 'numeric', month: 'short', year: 'numeric',
+      });
+    } catch { return date; }
+  })();
 
   async function handleSubmit() {
     const num = parseFloat(amount);
-    if (!num || num <= 0)  { toast.error('Enter a valid amount');  return; }
-    if (!category)         { toast.error('Pick a category');       return; }
-
+    if (!num || num <= 0) { toast.error('Enter a valid amount'); return; }
+    if (!category)        { toast.error('Pick a category');      return; }
     setSaving(true);
     try {
       await addExpense({ amount: num, category, mode, bank, note: note || undefined, date });
-      toast.success('Entry added ✓');
+      toast.success('Entry saved ✓');
       refresh();
       navigate('/', { replace: true });
     } catch (e: any) {
-      toast.error(e.message || 'Failed to add entry');
+      toast.error(e.message || 'Failed to save');
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="page bg-ink safe-top">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 pt-4 pb-3 bg-white border-b border-gray-100">
+    <div className="page bg-white safe-top">
+
+      {/* ── Top bar ── */}
+      <div className="flex items-center justify-between px-4 pt-5 pb-2 flex-shrink-0">
         <button
           onClick={() => navigate(-1)}
-          className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-50 active:scale-90 transition-transform"
+          className="w-11 h-11 flex items-center justify-center rounded-full bg-gray-100 active:scale-90 transition-transform"
         >
-          <ChevronLeft size={20} className="text-gray-600" />
+          <ChevronLeft size={22} className="text-gray-700" />
         </button>
-        <h2 className="text-base font-semibold text-gray-900">Add Entry</h2>
+
+        {/* Type toggle */}
+        <div className="flex p-1 bg-gray-100 rounded-2xl gap-1">
+          {(['expense', 'income'] as EntryType[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => { setType(t); setCategory(''); }}
+              className={`px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-95 ${
+                type === t
+                  ? t === 'expense'
+                    ? 'bg-white text-red-500 shadow-sm'
+                    : 'bg-white text-green-600 shadow-sm'
+                  : 'text-gray-400'
+              }`}
+            >
+              {t === 'expense' ? '↓ Expense' : '↑ Income'}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto scrollbar-hide">
-        <div className="px-4 pt-4 pb-6 space-y-4 max-w-md mx-auto">
+      {/* ── Hero amount input ── */}
+      <div
+        className="mx-4 mt-4 rounded-3xl px-6 py-6 flex items-center gap-2 flex-shrink-0"
+        style={{ background: accentLight }}
+        onClick={() => amountRef.current?.focus()}
+      >
+        <span
+          className={`text-4xl font-extrabold select-none ${accentText}`}
+          style={{ color: accentColor }}
+        >
+          ₹
+        </span>
+        <input
+          ref={amountRef}
+          type="number"
+          inputMode="decimal"
+          placeholder="0"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="flex-1 text-5xl font-extrabold bg-transparent outline-none w-0 placeholder-gray-200"
+          style={{ color: accentColor, caretColor: accentColor }}
+        />
+      </div>
 
-          {/* Type toggle */}
-          <div className="flex p-1 bg-gray-100 rounded-xl gap-1">
-            {(['expense', 'income'] as EntryType[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => { setType(t); setCategory(''); }}
-                className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all capitalize ${
-                  type === t
-                    ? t === 'expense'
-                      ? 'bg-white text-red-500 shadow-sm'
-                      : 'bg-white text-green-600 shadow-sm'
-                    : 'text-gray-400'
-                }`}
-              >
-                {t === 'expense' ? '↓ Expense' : '↑ Income'}
-              </button>
-            ))}
-          </div>
-
-          {/* Amount */}
-          <div className="card p-4">
-            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide block mb-2">
-              Amount
-            </label>
-            <div className="flex items-center gap-2">
-              <span className="text-3xl font-bold text-gray-400">₹</span>
-              <input
-                ref={amountRef}
-                type="number"
-                inputMode="decimal"
-                placeholder="0"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="flex-1 text-4xl font-bold text-gray-900 bg-transparent outline-none placeholder-gray-200 w-0"
-              />
-            </div>
-          </div>
+      {/* ── Scrollable form ── */}
+      <div className="flex-1 overflow-y-auto scrollbar-hide pt-5 pb-2">
+        <div className="px-4 space-y-6 max-w-md mx-auto">
 
           {/* Category */}
-          <div className="card p-4">
-            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide block mb-3">
+          <div>
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">
               Category
-            </label>
-            <div className="grid grid-cols-3 gap-2">
+            </p>
+            <div className="grid grid-cols-4 gap-2">
               {categories.map((cat) => {
                 const active = category === cat.label;
                 return (
                   <button
                     key={cat.label}
                     onClick={() => setCategory(cat.label)}
-                    className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl text-xs font-medium transition-all active:scale-95 ${
-                      active ? 'shadow-sm' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                    }`}
-                    style={active ? { background: cat.color + '18', color: cat.color, border: `1.5px solid ${cat.color}40` } : {}}
+                    className="flex flex-col items-center gap-2 py-4 rounded-2xl text-[11px] font-semibold transition-all active:scale-95 select-none"
+                    style={
+                      active
+                        ? { background: cat.color + '18', color: cat.color, outline: `2px solid ${cat.color}55` }
+                        : { background: '#F8FAFC', color: '#64748B' }
+                    }
                   >
-                    <span className="text-xl leading-none">{cat.icon}</span>
-                    <span className="leading-tight text-center">{cat.label}</span>
+                    <span className="text-2xl leading-none">{cat.icon}</span>
+                    <span className="leading-tight text-center px-1">{cat.label}</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Mode */}
-          <div className="card p-4">
-            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide block mb-3">
+          {/* Payment Mode */}
+          <div>
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">
               Payment Mode
-            </label>
-            <div className="flex flex-wrap gap-2">
+            </p>
+            <div className="grid grid-cols-4 gap-2">
               {PAYMENT_MODES.map((m) => (
                 <button
                   key={m}
                   onClick={() => setMode(m)}
-                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-all active:scale-95 ${
-                    mode === m
-                      ? 'bg-primary text-white shadow-sm'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  className={`py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-95 ${
+                    mode === m ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-500'
                   }`}
                 >
-                  {m}
+                  {m === 'Net Banking' ? 'Net' : m}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Bank + Date */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="card p-4">
-              <label className="text-xs font-medium text-gray-400 uppercase tracking-wide block mb-2">
-                Bank
-              </label>
-              <div className="relative">
-                <select
-                  value={bank}
-                  onChange={(e) => setBank(e.target.value)}
-                  className="w-full bg-transparent text-sm font-medium text-gray-800 outline-none appearance-none pr-5"
+          {/* Bank — horizontal chips */}
+          <div>
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">
+              Bank
+            </p>
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4">
+              {BANKS.map((b) => (
+                <button
+                  key={b}
+                  onClick={() => setBank(b)}
+                  className={`flex-shrink-0 px-5 py-3 rounded-2xl text-sm font-bold transition-all active:scale-95 ${
+                    bank === b ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-500'
+                  }`}
                 >
-                  {BANKS.map((b) => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
-                <ChevronDown size={14} className="absolute right-0 top-0.5 text-gray-400 pointer-events-none" />
-              </div>
-            </div>
-
-            <div className="card p-4">
-              <label className="text-xs font-medium text-gray-400 uppercase tracking-wide block mb-2">
-                Date
-              </label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-transparent text-sm font-medium text-gray-800 outline-none"
-              />
+                  {b}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Note */}
-          <div className="card p-4">
-            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide block mb-2">
-              Note <span className="normal-case text-gray-300">(optional)</span>
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Zomato order, petrol..."
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              className="w-full text-sm text-gray-800 bg-transparent outline-none placeholder-gray-300"
-            />
+          {/* Date + Note */}
+          <div className="grid grid-cols-2 gap-3">
+
+            {/* Date */}
+            <button
+              className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-4 active:scale-95 transition-transform text-left relative overflow-hidden"
+              onClick={() => dateRef.current?.showPicker?.()}
+            >
+              <CalendarDays size={20} className="text-gray-400 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide leading-none mb-1">Date</p>
+                <p className="text-sm font-semibold text-gray-800 truncate">{dateLabel}</p>
+              </div>
+              <input
+                ref={dateRef}
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+              />
+            </button>
+
+            {/* Note */}
+            <div className="bg-gray-50 rounded-2xl px-4 py-4">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide leading-none mb-1">Note</p>
+              <input
+                type="text"
+                placeholder="optional…"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="w-full text-sm font-semibold text-gray-800 bg-transparent outline-none placeholder-gray-300"
+              />
+            </div>
+
           </div>
 
         </div>
       </div>
 
-      {/* Submit */}
-      <div className="px-4 py-3 bg-white border-t border-gray-100 safe-bottom">
+      {/* ── Submit ── */}
+      <div className="px-4 pt-3 pb-4 safe-bottom flex-shrink-0">
         <button
           onClick={handleSubmit}
           disabled={saving}
-          className={`w-full py-4 rounded-2xl text-white font-semibold text-base transition-all active:scale-95 disabled:opacity-60 ${
-            type === 'expense' ? 'bg-red-500' : 'bg-green-500'
-          }`}
+          className={`w-full py-4 rounded-2xl text-white font-bold text-base transition-all active:scale-[0.97] disabled:opacity-50 ${accentBtn}`}
         >
           {saving
             ? 'Saving…'
-            : type === 'expense'
-              ? `Add Expense${amount ? ` · ₹${amount}` : ''}`
-              : `Add Income${amount ? ` · ₹${amount}` : ''}`
+            : `${type === 'expense' ? 'Add Expense' : 'Add Income'}${displayAmt ? ` · ₹${displayAmt}` : ''}`
           }
         </button>
       </div>
+
     </div>
   );
 }
