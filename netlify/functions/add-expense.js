@@ -1,17 +1,13 @@
 // /.netlify/functions/add-expense
-// Appends one expense row to the correct monthly tab (creates tab if needed)
+// Writes in SBI Expense format: A=Date, B=Debit, C=Credit, E=Purpose
+// Finds the matching month tab (handles "Jan", "Jan 2026" etc.) or creates one
 
 const { google } = require('googleapis')
-
 const SHEET_ID = process.env.SHEET_ID
-const HEADERS  = ['id', 'amount', 'category', 'mode', 'bank', 'note', 'date', 'created_at']
 
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-
-function getTabName(dateStr) {
-  const d = new Date(dateStr)
-  return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`
-}
+const MONTHS     = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+const FULLMONTHS = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December']
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -28,64 +24,75 @@ function getAuth() {
   })
 }
 
-async function ensureTab(sheets, spreadsheetId, tabName) {
+// Find an existing tab that matches the given date's month
+async function findOrCreateTab(sheets, spreadsheetId, dateStr) {
+  const d       = new Date(dateStr)
+  const abbr    = MONTHS[d.getMonth()]        // "May"
+  const full    = FULLMONTHS[d.getMonth()]    // "May" (same for May)
+  const withYr  = `${abbr} ${d.getFullYear()}` // "May 2026"
+
   const meta   = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties.title' })
-  const exists = meta.data.sheets.some((s) => s.properties.title === tabName)
-  if (!exists) {
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId,
-      requestBody: { requests: [{ addSheet: { properties: { title: tabName } } }] },
-    })
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range:            `${tabName}!A1:H1`,
-      valueInputOption: 'RAW',
-      requestBody:      { values: [HEADERS] },
-    })
+  const titles = meta.data.sheets.map(s => s.properties.title)
+
+  // Try candidates: "May 2026", "May", "May 2026", "May" (full name)
+  for (const candidate of [withYr, abbr, full, `${full} ${d.getFullYear()}`]) {
+    if (titles.includes(candidate)) return candidate
   }
+
+  // Create new tab with SBI-style headers
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: { requests: [{ addSheet: { properties: { title: withYr } } }] },
+  })
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      valueInputOption: 'RAW',
+      data: [
+        { range: `${withYr}!A1`, values: [['Date']] },
+        { range: `${withYr}!B2`, values: [['Debit']] },
+        { range: `${withYr}!C2`, values: [['Credit']] },
+        { range: `${withYr}!E2`, values: [['Purpose']] },
+        { range: `${withYr}!F2`, values: [['Balance']] },
+      ],
+    },
+  })
+
+  return withYr
 }
 
 exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers: CORS, body: '' }
-  }
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers: CORS, body: JSON.stringify({ error: 'Method not allowed' }) }
-  }
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' }
+  if (event.httpMethod !== 'POST')    return { statusCode: 405, headers: CORS, body: JSON.stringify({ error: 'Method not allowed' }) }
 
   try {
     const body = JSON.parse(event.body || '{}')
-    const { id, amount, category, mode, bank, note, date } = body
+    const { amount, purpose, date, isExpense } = body
 
-    if (!amount || !category || !mode || !date) {
-      return {
-        statusCode: 400,
-        headers:    CORS,
-        body:       JSON.stringify({ error: 'Missing required fields: amount, category, mode, date' }),
-      }
+    if (!amount || !date) {
+      return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'amount and date are required' }) }
     }
 
-    const rowId      = id ?? String(Date.now())
-    const created_at = new Date().toISOString()
-    const tabName    = getTabName(date)
+    const sheets  = google.sheets({ version: 'v4', auth: getAuth() })
+    const tabName = await findOrCreateTab(sheets, SHEET_ID, date)
 
-    const sheets = google.sheets({ version: 'v4', auth: getAuth() })
-    await ensureTab(sheets, SHEET_ID, tabName)
+    // SBI row: A=date, B=debit(expense), C=credit(income), D='', E=purpose, F-K=''
+    const debit  = isExpense !== false ? amount : ''
+    const credit = isExpense === false ? amount : ''
+    const row    = [date, debit, credit, '', purpose || '', '', '', '', '', '', '']
 
     await sheets.spreadsheets.values.append({
       spreadsheetId:    SHEET_ID,
-      range:            `${tabName}!A:H`,
+      range:            `${tabName}!A:K`,
       valueInputOption: 'RAW',
       insertDataOption: 'INSERT_ROWS',
-      requestBody: {
-        values: [[rowId, amount, category, mode, bank ?? '', note ?? '', date, created_at]],
-      },
+      requestBody:      { values: [row] },
     })
 
     return {
       statusCode: 200,
       headers:    CORS,
-      body:       JSON.stringify({ success: true, id: rowId, created_at, tab: tabName }),
+      body:       JSON.stringify({ success: true, tab: tabName }),
     }
   } catch (err) {
     console.error('[add-expense]', err.message)

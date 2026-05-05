@@ -5,7 +5,6 @@ const BASE = '/.netlify/functions';
 export async function fetchExpenses(): Promise<Expense[]> {
   const res = await fetch(`${BASE}/get-expenses`);
 
-  // Running on plain Vite without netlify dev — functions not available yet
   const contentType = res.headers.get('content-type') ?? '';
   if (!contentType.includes('application/json')) {
     console.warn('[ExpenseFlow] Functions not available locally. Deploy to Netlify to connect Google Sheets.');
@@ -21,7 +20,7 @@ export async function addExpense(payload: AddExpensePayload): Promise<void> {
   const res = await fetch(`${BASE}/add-expense`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(payload),
+    body:    JSON.stringify(payload),   // { amount, purpose, date, isExpense }
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

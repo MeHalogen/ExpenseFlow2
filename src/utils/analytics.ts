@@ -1,8 +1,9 @@
 import type { Expense } from '../types';
-import { INCOME_LABELS, ALL_CATEGORIES, SHORT_MONTHS } from '../constants';
+import { SHORT_MONTHS } from '../constants';
 
-export function isIncome(e: Expense) {
-  return INCOME_LABELS.has(e.category);
+// Use the isIncome flag from the backend (set from Credit column)
+export function isIncome(e: Expense): boolean {
+  return e.isIncome === true;
 }
 
 export function filterByMonth(expenses: Expense[], year: number, month: number) {
@@ -38,14 +39,14 @@ export function categoryBreakdown(expenses: Expense[]): CategoryStat[] {
   });
   return Object.entries(map)
     .map(([category, amount]) => {
-      const meta = ALL_CATEGORIES.find((c) => c.label === category);
-      return { category, amount, icon: meta?.icon ?? '📦', color: meta?.color ?? '#94A3B8' };
+      const meta = getCategoryMeta(category);
+      return { category, amount, icon: meta.icon, color: meta.color };
     })
     .sort((a, b) => b.amount - a.amount);
 }
 
 export interface MonthlyTrend {
-  month:  string; // "Jan 2026"
+  month:  string;
   year:   number;
   mon:    number;
   income: number;
@@ -76,4 +77,34 @@ export function monthlyTrends(expenses: Expense[], limit = 6): MonthlyTrend[] {
 
 export function fmt(n: number) {
   return '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}
+
+// Smart keyword mapper — works for SBI purpose strings like "Zomato", "Cab", "Rent"
+export function getCategoryMeta(purpose: string): { icon: string; color: string } {
+  const t = purpose.toLowerCase();
+  if (/zomato|swiggy|food|restaurant|cafe|dhaba|biryani|lunch|dinner|breakfast|eating/.test(t))
+    return { icon: '🍔', color: '#F97316' };
+  if (/cab|auto|uber|ola|taxi|petrol|fuel|bus|metro|train|rapido|transport|fare/.test(t))
+    return { icon: '🚗', color: '#3B82F6' };
+  if (/rent|house|room|pg|hostel|flat/.test(t))
+    return { icon: '🏠', color: '#6366F1' };
+  if (/flipkart|amazon|meesho|shopping|myntra|ajio|nykaa/.test(t))
+    return { icon: '🛍️', color: '#EC4899' };
+  if (/recharge|mobile|phone|jio|airtel|vi |vodafone|bsnl/.test(t))
+    return { icon: '📱', color: '#14B8A6' };
+  if (/netflix|prime|hotstar|subscription|disney|zee5|spotify/.test(t))
+    return { icon: '🎬', color: '#8B5CF6' };
+  if (/salary|income|credit|freelance|payment received/.test(t))
+    return { icon: '💰', color: '#22C55E' };
+  if (/grocery|groceries|vegetable|sabzi|market|kirana|milk|fruit/.test(t))
+    return { icon: '🛒', color: '#22C55E' };
+  if (/electricity|water|gas|bill|utility|maintenance/.test(t))
+    return { icon: '💡', color: '#F59E0B' };
+  if (/doctor|medicine|pharmacy|hospital|health|medical|apollo/.test(t))
+    return { icon: '💊', color: '#10B981' };
+  if (/flight|train ticket|hotel|trip|travel|booking|oyo/.test(t))
+    return { icon: '✈️',  color: '#0EA5E9' };
+  if (/school|college|course|fee|tuition|education|book/.test(t))
+    return { icon: '📚', color: '#84CC16' };
+  return { icon: '📦', color: '#94A3B8' };
 }

@@ -3,34 +3,55 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import { addExpense } from '../api';
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, PAYMENT_MODES, BANKS } from '../constants';
 import type { EntryType } from '../types';
 
 interface Props {
   refresh: () => void;
 }
 
+// Quick-fill shortcuts matching SBI-style purposes
+const EXPENSE_SHORTCUTS = [
+  { label: 'Food',      icon: '🍔' },
+  { label: 'Cab',       icon: '🚗' },
+  { label: 'Zomato',    icon: '🛵' },
+  { label: 'Groceries', icon: '🛒' },
+  { label: 'Rent',      icon: '🏠' },
+  { label: 'Recharge',  icon: '📱' },
+  { label: 'Netflix',   icon: '🎬' },
+  { label: 'Petrol',    icon: '⛽' },
+  { label: 'Medicine',  icon: '💊' },
+  { label: 'Shopping',  icon: '🛍️' },
+  { label: 'Bill',      icon: '💡' },
+  { label: 'Other',     icon: '📦' },
+];
+
+const INCOME_SHORTCUTS = [
+  { label: 'Salary',     icon: '💰' },
+  { label: 'Freelance',  icon: '💻' },
+  { label: 'Refund',     icon: '↩️' },
+  { label: 'Gift',       icon: '🎁' },
+  { label: 'Investment', icon: '📈' },
+];
+
 export default function AddEntryPage({ refresh }: Props) {
   const navigate = useNavigate();
 
-  const [type,     setType]     = useState<EntryType>('expense');
-  const [amount,   setAmount]   = useState('');
-  const [category, setCategory] = useState('');
-  const [mode,     setMode]     = useState('UPI');
-  const [bank,     setBank]     = useState('SBI');
-  const [date,     setDate]     = useState(new Date().toISOString().slice(0, 10));
-  const [note,     setNote]     = useState('');
-  const [saving,   setSaving]   = useState(false);
+  const [type,    setType]    = useState<EntryType>('expense');
+  const [amount,  setAmount]  = useState('');
+  const [purpose, setPurpose] = useState('');
+  const [date,    setDate]    = useState(new Date().toISOString().slice(0, 10));
+  const [saving,  setSaving]  = useState(false);
 
-  const amountRef = useRef<HTMLInputElement>(null);
-  const dateRef   = useRef<HTMLInputElement>(null);
+  const amountRef  = useRef<HTMLInputElement>(null);
+  const purposeRef = useRef<HTMLInputElement>(null);
+  const dateRef    = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const t = setTimeout(() => amountRef.current?.focus(), 120);
     return () => clearTimeout(t);
   }, []);
 
-  const categories  = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+  const shortcuts   = type === 'expense' ? EXPENSE_SHORTCUTS : INCOME_SHORTCUTS;
   const accentLight = type === 'expense' ? '#FEF2F2' : '#F0FDF4';
   const accentColor = type === 'expense' ? '#EF4444' : '#22C55E';
   const accentBtn   = type === 'expense' ? 'bg-red-500'   : 'bg-green-500';
@@ -50,12 +71,18 @@ export default function AddEntryPage({ refresh }: Props) {
 
   async function handleSubmit() {
     const num = parseFloat(amount);
-    if (!num || num <= 0) { toast.error('Enter a valid amount'); return; }
-    if (!category)        { toast.error('Pick a category');      return; }
+    if (!num || num <= 0)  { toast.error('Enter a valid amount'); return; }
+    if (!purpose.trim())   { toast.error('Enter a purpose');      return; }
+
     setSaving(true);
     try {
-      await addExpense({ amount: num, category, mode, bank, note: note || undefined, date });
-      toast.success('Entry saved ✓');
+      await addExpense({
+        amount:    num,
+        purpose:   purpose.trim(),
+        date,
+        isExpense: type === 'expense',
+      });
+      toast.success('Saved to sheet ✓');
       refresh();
       navigate('/', { replace: true });
     } catch (e: any) {
@@ -77,12 +104,12 @@ export default function AddEntryPage({ refresh }: Props) {
           <ChevronLeft size={22} className="text-gray-700" />
         </button>
 
-        {/* Type toggle */}
+        {/* Expense / Income toggle */}
         <div className="flex p-1 bg-gray-100 rounded-2xl gap-1">
           {(['expense', 'income'] as EntryType[]).map((t) => (
             <button
               key={t}
-              onClick={() => { setType(t); setCategory(''); }}
+              onClick={() => { setType(t); setPurpose(''); }}
               className={`px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-95 ${
                 type === t
                   ? t === 'expense'
@@ -91,24 +118,19 @@ export default function AddEntryPage({ refresh }: Props) {
                   : 'text-gray-400'
               }`}
             >
-              {t === 'expense' ? '↓ Expense' : '↑ Income'}
+              {t === 'expense' ? '↓ Debit' : '↑ Credit'}
             </button>
           ))}
         </div>
       </div>
 
-      {/* ── Hero amount input ── */}
+      {/* ── Hero amount ── */}
       <div
-        className="mx-4 mt-4 rounded-3xl px-6 py-6 flex items-center gap-2 flex-shrink-0"
+        className="mx-4 mt-3 rounded-3xl px-6 py-5 flex items-center gap-2 flex-shrink-0"
         style={{ background: accentLight }}
         onClick={() => amountRef.current?.focus()}
       >
-        <span
-          className={`text-4xl font-extrabold select-none ${accentText}`}
-          style={{ color: accentColor }}
-        >
-          ₹
-        </span>
+        <span className={`text-4xl font-extrabold select-none ${accentText}`} style={{ color: accentColor }}>₹</span>
         <input
           ref={amountRef}
           type="number"
@@ -123,88 +145,69 @@ export default function AddEntryPage({ refresh }: Props) {
 
       {/* ── Scrollable form ── */}
       <div className="flex-1 overflow-y-auto scrollbar-hide pt-5 pb-2">
-        <div className="px-4 space-y-6 max-w-md mx-auto">
+        <div className="px-4 space-y-5 max-w-md mx-auto">
 
-          {/* Category */}
+          {/* Purpose — primary field */}
+          <div>
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+              Purpose
+            </p>
+            <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-4">
+              <input
+                ref={purposeRef}
+                type="text"
+                placeholder={type === 'expense' ? 'e.g. Zomato, Rent, Cab…' : 'e.g. Salary, Freelance…'}
+                value={purpose}
+                onChange={(e) => setPurpose(e.target.value)}
+                className="flex-1 text-base font-semibold text-gray-900 bg-transparent outline-none placeholder-gray-300"
+              />
+              {purpose && (
+                <button onClick={() => setPurpose('')} className="text-gray-300 text-lg leading-none">×</button>
+              )}
+            </div>
+          </div>
+
+          {/* Quick-fill shortcuts */}
           <div>
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">
-              Category
+              Quick fill
             </p>
             <div className="grid grid-cols-4 gap-2">
-              {categories.map((cat) => {
-                const active = category === cat.label;
+              {shortcuts.map((s) => {
+                const active = purpose === s.label;
                 return (
                   <button
-                    key={cat.label}
-                    onClick={() => setCategory(cat.label)}
-                    className="flex flex-col items-center gap-2 py-4 rounded-2xl text-[11px] font-semibold transition-all active:scale-95 select-none"
+                    key={s.label}
+                    onClick={() => {
+                      setPurpose(s.label);
+                      amountRef.current?.focus();
+                    }}
+                    className="flex flex-col items-center gap-2 py-3.5 rounded-2xl text-[11px] font-semibold transition-all active:scale-95"
                     style={
                       active
-                        ? { background: cat.color + '18', color: cat.color, outline: `2px solid ${cat.color}55` }
+                        ? { background: accentColor + '18', color: accentColor, outline: `2px solid ${accentColor}44` }
                         : { background: '#F8FAFC', color: '#64748B' }
                     }
                   >
-                    <span className="text-2xl leading-none">{cat.icon}</span>
-                    <span className="leading-tight text-center px-1">{cat.label}</span>
+                    <span className="text-2xl leading-none">{s.icon}</span>
+                    <span className="leading-tight text-center">{s.label}</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Payment Mode */}
+          {/* Date */}
           <div>
-            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">
-              Payment Mode
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+              Date
             </p>
-            <div className="grid grid-cols-4 gap-2">
-              {PAYMENT_MODES.map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setMode(m)}
-                  className={`py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-95 ${
-                    mode === m ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-500'
-                  }`}
-                >
-                  {m === 'Net Banking' ? 'Net' : m}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Bank — horizontal chips */}
-          <div>
-            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">
-              Bank
-            </p>
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4">
-              {BANKS.map((b) => (
-                <button
-                  key={b}
-                  onClick={() => setBank(b)}
-                  className={`flex-shrink-0 px-5 py-3 rounded-2xl text-sm font-bold transition-all active:scale-95 ${
-                    bank === b ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-500'
-                  }`}
-                >
-                  {b}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Date + Note */}
-          <div className="grid grid-cols-2 gap-3">
-
-            {/* Date */}
             <button
-              className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-4 active:scale-95 transition-transform text-left relative overflow-hidden"
+              className="w-full flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-4 active:scale-95 transition-transform text-left relative"
               onClick={() => dateRef.current?.showPicker?.()}
             >
               <CalendarDays size={20} className="text-gray-400 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide leading-none mb-1">Date</p>
-                <p className="text-sm font-semibold text-gray-800 truncate">{dateLabel}</p>
-              </div>
+              <span className="text-base font-semibold text-gray-800">{dateLabel}</span>
               <input
                 ref={dateRef}
                 type="date"
@@ -213,19 +216,6 @@ export default function AddEntryPage({ refresh }: Props) {
                 className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
               />
             </button>
-
-            {/* Note */}
-            <div className="bg-gray-50 rounded-2xl px-4 py-4">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide leading-none mb-1">Note</p>
-              <input
-                type="text"
-                placeholder="optional…"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                className="w-full text-sm font-semibold text-gray-800 bg-transparent outline-none placeholder-gray-300"
-              />
-            </div>
-
           </div>
 
         </div>
@@ -239,8 +229,8 @@ export default function AddEntryPage({ refresh }: Props) {
           className={`w-full py-4 rounded-2xl text-white font-bold text-base transition-all active:scale-[0.97] disabled:opacity-50 ${accentBtn}`}
         >
           {saving
-            ? 'Saving…'
-            : `${type === 'expense' ? 'Add Expense' : 'Add Income'}${displayAmt ? ` · ₹${displayAmt}` : ''}`
+            ? 'Saving to sheet…'
+            : `${type === 'expense' ? 'Add Debit' : 'Add Credit'}${displayAmt ? ` · ₹${displayAmt}` : ''}`
           }
         </button>
       </div>
