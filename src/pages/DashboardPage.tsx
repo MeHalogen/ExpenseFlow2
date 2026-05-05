@@ -35,6 +35,19 @@ export default function DashboardPage({ expenses, loading, error, refresh }: Pro
   const categories= useMemo(() => categoryBreakdown(monthly), [monthly]);
   const maxCat    = categories[0]?.amount || 1;
 
+  // Pick savings summary from the most-recent entry that has these values
+  const savingsSummary = useMemo(() => {
+    const e = monthly.find(x => x.carryover || x.totalSavings || x.grandTotal);
+    if (!e) return null;
+    return {
+      carryover:       e.carryover       ?? 0,
+      savings:         e.savings         ?? 0,
+      incentiveSaving: e.incentiveSaving ?? 0,
+      totalSavings:    e.totalSavings    ?? 0,
+      grandTotal:      e.grandTotal      ?? 0,
+    };
+  }, [monthly]);
+
   async function handleDelete(id: string) {
     setDeletingId(id);
     try {
@@ -110,6 +123,37 @@ export default function DashboardPage({ expenses, loading, error, refresh }: Pro
             </div>
           </div>
         </div>
+
+        {/* ── Savings Overview Card ── */}
+        {savingsSummary && (
+          <div className="mx-4 mt-4 card p-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+              Savings Overview
+            </p>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <div className="bg-indigo-50 rounded-xl p-3">
+                <p className="text-xs text-indigo-500 font-medium mb-0.5">Carryover</p>
+                <p className="text-base font-bold text-indigo-700">{fmt(savingsSummary.carryover)}</p>
+              </div>
+              <div className="bg-emerald-50 rounded-xl p-3">
+                <p className="text-xs text-emerald-600 font-medium mb-0.5">Savings 😊</p>
+                <p className="text-base font-bold text-emerald-700">{fmt(savingsSummary.savings)}</p>
+              </div>
+              <div className="bg-violet-50 rounded-xl p-3">
+                <p className="text-xs text-violet-500 font-medium mb-0.5">Incentive Saving</p>
+                <p className="text-base font-bold text-violet-700">{fmt(savingsSummary.incentiveSaving)}</p>
+              </div>
+              <div className="bg-amber-50 rounded-xl p-3">
+                <p className="text-xs text-amber-600 font-medium mb-0.5">Total Savings</p>
+                <p className="text-base font-bold text-amber-700">{fmt(savingsSummary.totalSavings)}</p>
+              </div>
+            </div>
+            <div className="bg-blue-600 rounded-xl p-3 flex items-center justify-between">
+              <p className="text-sm font-semibold text-blue-100">Grand Total</p>
+              <p className="text-xl font-bold text-white">{fmt(savingsSummary.grandTotal)}</p>
+            </div>
+          </div>
+        )}
 
         {/* ── Category Breakdown ── */}
         {categories.length > 0 && (

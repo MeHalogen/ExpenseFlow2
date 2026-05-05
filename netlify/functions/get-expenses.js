@@ -50,11 +50,18 @@ function parseSheetDate(val, fallbackYr, fallbackMon) {
 }
 
 // Read SBI format: 2 header rows, data from row 3
-// A=Date, B=Debit, C=Credit, D=Salary, E=Purpose, F=Balance
+// A=Date, B=Debit, C=Credit, D=Salary, E=Purpose, F=Balance,
+// G=Carryover, H=Savings, I=Incentive saving, J=Total savings, K=Grand total
 function readSBIFormat(rows, tab) {
   const { mon, yr } = tabMonthYear(tab.title)
   const expenses = []
   let lastDate = null
+  // Monthly summary values — constant for the whole tab; use first non-zero found
+  let carryover      = 0
+  let savings        = 0
+  let incentiveSaving= 0
+  let totalSavings   = 0
+  let grandTotal     = 0
 
   rows.slice(2).forEach((row, i) => {
     const rowIndex = i + 3 // 1-based sheet row number
@@ -65,6 +72,20 @@ function readSBIFormat(rows, tab) {
     const purpose = String(row[4] ?? '').trim()
     const balance = parseFloat(String(row[5] ?? '').replace(/,/g, '')) || 0
 
+    // Collect monthly summary columns (G=6, H=7, I=8, J=9, K=10)
+    const rowCarryover       = parseFloat(String(row[6]  ?? '').replace(/,/g, '')) || 0
+    const rowSavings         = parseFloat(String(row[7]  ?? '').replace(/,/g, '')) || 0
+    const rowIncentive       = parseFloat(String(row[8]  ?? '').replace(/,/g, '')) || 0
+    const rowTotalSavings    = parseFloat(String(row[9]  ?? '').replace(/,/g, '')) || 0
+    const rowGrandTotal      = parseFloat(String(row[10] ?? '').replace(/,/g, '')) || 0
+
+    if (!carryover && rowCarryover)        carryover       = rowCarryover
+    if (!savings && rowSavings)            savings         = rowSavings
+    if (!incentiveSaving && rowIncentive)  incentiveSaving = rowIncentive
+    if (!totalSavings && rowTotalSavings)  totalSavings    = rowTotalSavings
+    // Grand total updates per-row (balance + totalSavings) — keep latest
+    if (rowGrandTotal) grandTotal = rowGrandTotal
+
     if (!debit && !credit) return
 
     if (dateVal) {
@@ -73,6 +94,8 @@ function readSBIFormat(rows, tab) {
     }
 
     const date = lastDate || `${yr}-${String(mon + 1).padStart(2, '0')}-01`
+
+    const summary = { carryover, savings, incentiveSaving, totalSavings, grandTotal }
 
     if (debit > 0) {
       expenses.push({
@@ -86,6 +109,7 @@ function readSBIFormat(rows, tab) {
         created_at: date,
         isIncome:   false,
         balance,
+        ...summary,
       })
     }
 
@@ -101,6 +125,7 @@ function readSBIFormat(rows, tab) {
         created_at: date,
         isIncome:   true,
         balance,
+        ...summary,
       })
     }
   })
