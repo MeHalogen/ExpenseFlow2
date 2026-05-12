@@ -1,6 +1,5 @@
 // /.netlify/functions/add-expense
-// Writes in SBI Expense format: A=Date, B=Debit, C=Credit, E=Purpose
-// Finds the matching month tab (handles "Jan", "Jan 2026" etc.) or creates one
+// Writes in SBI Expense format: A=Date, B=Debit, C=Credit, D=Purpose, E=Balance, F=Carryover...
 
 const { google } = require('googleapis')
 const SHEET_ID = process.env.SHEET_ID
@@ -52,8 +51,13 @@ async function findOrCreateTab(sheets, spreadsheetId, dateStr) {
         { range: `${withYr}!A1`, values: [['Date']] },
         { range: `${withYr}!B2`, values: [['Debit']] },
         { range: `${withYr}!C2`, values: [['Credit']] },
-        { range: `${withYr}!E2`, values: [['Purpose']] },
-        { range: `${withYr}!F2`, values: [['Balance']] },
+        { range: `${withYr}!D2`, values: [['Purpose']] },
+        { range: `${withYr}!E2`, values: [['Balance']] },
+        { range: `${withYr}!F1`, values: [['Carryover']] },
+        { range: `${withYr}!G1`, values: [['Savings 😊']] },
+        { range: `${withYr}!H1`, values: [['Incentive saving']] },
+        { range: `${withYr}!I1`, values: [['Total savings']] },
+        { range: `${withYr}!J1`, values: [['Grand total']] },
       ],
     },
   })
@@ -76,14 +80,14 @@ exports.handler = async (event) => {
     const sheets  = google.sheets({ version: 'v4', auth: getAuth() })
     const tabName = await findOrCreateTab(sheets, SHEET_ID, date)
 
-    // SBI row: A=date, B=debit(expense), C=credit(income), D='', E=purpose, F-K=''
+    // SBI row: A=date, B=debit(expense), C=credit(income), D=purpose, E-J=''
     const debit  = isExpense !== false ? amount : ''
     const credit = isExpense === false ? amount : ''
-    const row    = [date, debit, credit, '', purpose || '', '', '', '', '', '', '']
+    const row    = [date, debit, credit, purpose || '', '', '', '', '', '', '']
 
     await sheets.spreadsheets.values.append({
       spreadsheetId:    SHEET_ID,
-      range:            `${tabName}!A:K`,
+      range:            `${tabName}!A:J`,
       valueInputOption: 'RAW',
       insertDataOption: 'INSERT_ROWS',
       requestBody:      { values: [row] },

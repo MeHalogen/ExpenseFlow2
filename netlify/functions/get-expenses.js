@@ -69,15 +69,17 @@ function readSBIFormat(rows, tab) {
     const dateVal = String(row[0] ?? '').trim()
     const debit   = parseFloat(String(row[1] ?? '').replace(/,/g, '')) || 0
     const credit  = parseFloat(String(row[2] ?? '').replace(/,/g, '')) || 0
-    const purpose = String(row[4] ?? '').trim()
-    const balance = parseFloat(String(row[5] ?? '').replace(/,/g, '')) || 0
+    // A=Date(0), B=Debit(1), C=Credit(2), D=Purpose(3), E=Balance(4),
+    // F=Carryover(5), G=Savings(6), H=Incentive saving(7), I=Total savings(8), J=Grand total(9)
+    const purpose = String(row[3] ?? '').trim()
+    const balance = parseFloat(String(row[4] ?? '').replace(/,/g, '')) || 0
 
-    // Collect monthly summary columns (G=6, H=7, I=8, J=9, K=10)
-    const rowCarryover       = parseFloat(String(row[6]  ?? '').replace(/,/g, '')) || 0
-    const rowSavings         = parseFloat(String(row[7]  ?? '').replace(/,/g, '')) || 0
-    const rowIncentive       = parseFloat(String(row[8]  ?? '').replace(/,/g, '')) || 0
-    const rowTotalSavings    = parseFloat(String(row[9]  ?? '').replace(/,/g, '')) || 0
-    const rowGrandTotal      = parseFloat(String(row[10] ?? '').replace(/,/g, '')) || 0
+    // Collect monthly summary columns
+    const rowCarryover       = parseFloat(String(row[5]  ?? '').replace(/,/g, '')) || 0
+    const rowSavings         = parseFloat(String(row[6]  ?? '').replace(/,/g, '')) || 0
+    const rowIncentive       = parseFloat(String(row[7]  ?? '').replace(/,/g, '')) || 0
+    const rowTotalSavings    = parseFloat(String(row[8]  ?? '').replace(/,/g, '')) || 0
+    const rowGrandTotal      = parseFloat(String(row[9]  ?? '').replace(/,/g, '')) || 0
 
     if (!carryover && rowCarryover)        carryover       = rowCarryover
     if (!savings && rowSavings)            savings         = rowSavings
@@ -169,7 +171,7 @@ exports.handler = async (event) => {
     for (const tab of tabs) {
       const res = await sheets.spreadsheets.values.get({
         spreadsheetId: SHEET_ID,
-        range:         `${tab.title}!A1:K`,
+        range:         `${tab.title}!A1:J`,
       })
       const rows = res.data.values || []
       if (rows.length < 2) continue
